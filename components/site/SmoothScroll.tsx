@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { registerSmoothScroll } from "@/lib/scroll";
 
 /**
  * Lenis-style smooth scrolling for mouse wheels and in-page links.
@@ -19,12 +20,16 @@ export function SmoothScroll() {
     let target = window.scrollY;
     let current = window.scrollY;
     let raf = 0;
+    let last = 0;
     let running = false;
     const max = () => root.scrollHeight - window.innerHeight;
 
-    const tick = () => {
-      current += (target - current) * 0.09;
-      if (Math.abs(target - current) < 0.4) {
+    // Exponential smoothing on real elapsed time, so it feels the same at 60, 120 or 40 fps.
+    const tick = (now: number) => {
+      const dt = Math.min(0.05, last ? (now - last) / 1000 : 1 / 60);
+      last = now;
+      current += (target - current) * (1 - Math.exp(-dt * 7));
+      if (Math.abs(target - current) < 0.5) {
         current = target;
         running = false;
       }
@@ -34,6 +39,7 @@ export function SmoothScroll() {
     const start = () => {
       if (!running) {
         running = true;
+        last = 0;
         raf = requestAnimationFrame(tick);
       }
     };
@@ -71,11 +77,18 @@ export function SmoothScroll() {
       start();
     };
 
+    registerSmoothScroll((top) => {
+      current = window.scrollY;
+      target = Math.max(0, Math.min(max(), top));
+      start();
+    });
+
     window.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("scroll", onScroll, { passive: true });
     document.addEventListener("click", onClick);
     return () => {
       cancelAnimationFrame(raf);
+      registerSmoothScroll(null);
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("scroll", onScroll);
       document.removeEventListener("click", onClick);

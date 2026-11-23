@@ -12,6 +12,10 @@ import { Sun } from "./Sun";
 const N = PRODUCTS.length;
 const TAU = Math.PI * 2;
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+const smooth01 = (x: number) => {
+  const t = clamp01(x);
+  return t * t * (3 - 2 * t);
+};
 
 /** Every app has its own orbit; outer orbits are slower (Kepler-ish). */
 const orbitRadius = (i: number) => 3.4 + i * (9.2 / Math.max(1, N - 1));
@@ -128,7 +132,6 @@ function System({ lowPower }: { lowPower: boolean }) {
   const spin = useRef(PRODUCTS.map((_, i) => i * 2.39996 + 0.6));
   const act = useRef(PRODUCTS.map(() => 0)); // 0..1 how "active" each planet is
   const dpr = useThree((s) => s.viewport.dpr);
-  const cam_ = useMemo(() => ({ angle: 0, r: 36, y: 9, look: 0 }), []);
 
   const stars = useMemo(() => starfield(lowPower ? 800 : 1800, 40, 120), [lowPower]);
   const rings = useMemo(() => PRODUCTS.map((p, i) => traceLoop(circle(orbitRadius(i)), p.identity.glow, 0.1, 0.7, 6)), []);
@@ -143,9 +146,28 @@ function System({ lowPower }: { lowPower: boolean }) {
   );
 
   const v = useMemo(
-    () => ({ cur: new THREE.Vector3(0, 9, 36), curLook: new THREE.Vector3(), tmp: new THREE.Vector3() }),
+    () => ({
+      cur: new THREE.Vector3(0, 6.5, 33),
+      curLook: new THREE.Vector3(),
+      tmp: new THREE.Vector3(),
+      hero: new THREE.Vector3(),
+      look: new THREE.Vector3(),
+      reveal: stage.reveal,
+      zoom: 0,
+      px: 0,
+      py: 0,
+    }),
     [],
   );
+  const pointer = useRef({ x: 0, y: 0 });
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      pointer.current.x = (e.clientX / window.innerWidth) * 2 - 1;
+      pointer.current.y = (e.clientY / window.innerHeight) * 2 - 1;
+    };
+    window.addEventListener("pointermove", onMove, { passive: true });
+    return () => window.removeEventListener("pointermove", onMove);
+  }, []);
 
   useFrame((state, delta) => {
     const d = Math.min(delta, 0.1);
@@ -154,64 +176,75 @@ function System({ lowPower }: { lowPower: boolean }) {
     const wide = width >= 1024;
     const focus = stage.focus;
     const activeIdx = focus >= 0.5 ? Math.round(focus) - 1 : -1;
-    const zoom = clamp01(focus); // 0 overview → 1 touring the apps
+    // Frame-rate independent smoothing of the scroll-driven values.
+    v.reveal = THREE.MathUtils.damp(v.reveal, stage.reveal, 7, d);
+    v.zoom = THREE.MathUtils.damp(v.zoom, clamp01(focus), 5, d);
+    const rv = v.reveal;
+    const zoom = v.zoom; // 0 overview → 1 touring the apps
+    const e = rv * rv * (3 - 2 * rv); // hero → system blend
 
     const sm = stars.material as THREE.ShaderMaterial;
     sm.uniforms.uTime.value = t;
     sm.uniforms.uPixelRatio.value = dpr;
 
     // Planets orbit on their own rings; the system slows while touring.
+    // Hero: only the three inner worlds are out; the rest unfold from the Sun as you scroll.
     PRODUCTS.forEach((p, i) => {
+      const ri = i < 3 ? 1 : smooth01((rv - 0.12 - (i - 3) * 0.06) / 0.4);
       spin.current[i] += d * orbitSpeed(i) * (1 - 0.7 * zoom);
       act.current[i] = THREE.MathUtils.damp(act.current[i], i === activeIdx ? 1 : 0, 5, d);
       const a = act.current[i];
-      const r = orbitRadius(i);
+      const r = orbitRadius(i) * (0.25 + 0.75 * ri);
       const ref = planets.current[i];
       if (ref.group) {
         ref.group.position.set(Math.sin(spin.current[i]) * r, 0, Math.cos(spin.current[i]) * r);
-        ref.group.scale.setScalar(baseSize(i) * (1 + a * 1.1));
+        ref.group.scale.setScalar(Math.max(0.0001, baseSize(i) * (1 + a * 1.1) * ri));
+        ref.group.visible = ri > 0.001;
       }
       if (ref.mat) ref.mat.uniforms.uActive.value = a;
       if (ref.halo) (ref.halo.material as THREE.MeshBasicMaterial).opacity = a * 0.8;
-      const rm = rings[i].material as THREE.ShaderMaterial;
-      rm.uniforms.uBase.value = 0.08 + a * 0.4;
-      rm.uniforms.uTrail.value = 0.5 + a * 0.9;
+      const ring = rings[i];
+      ring.scale.setScalar(0.25 + 0.75 * ri);
+      ring.visible = ri > 0.001;
+      const rm = ring.material as THREE.ShaderMaterial;
+      rm.uniforms.uBase.value = (0.08 + a * 0.4) * ri;
+      rm.uniforms.uTrail.value = (0.5 + a * 0.9) * ri;
       rm.uniforms.uHead.value = (((spin.current[i] / TAU) % 1) + 1) % 1;
     });
 
-    // Camera orbits the Sun: it always approaches the active planet from outside its
-    // orbit, so the planet sits in front with the Sun behind it. Moving between apps
-    // sweeps around the system instead of cutting through it.
+    // System camera: calm overview; drifts and zooms gently toward the active planet.
     const activeRef = activeIdx >= 0 ? planets.current[activeIdx].group : null;
-    const dist = wide ? 31 : width >= 640 ? 34 : 38;
-    let tAngle = 0;
-    let tR = dist + 4;
-    let tY = THREE.MathUtils.lerp(9, 7, zoom);
-    let tLook = 0;
-    if (activeRef) {
-      const p = activeRef.position;
-      const r = Math.hypot(p.x, p.z);
-      tAngle = Math.atan2(p.x, p.z);
-      tR = r + (wide ? 11 : 13.5);
-      tY = 3.4;
-      tLook = Math.max(0, r - 1.6);
-    }
-    const k = 1 - Math.exp(-2.2 * d);
-    const diff = Math.atan2(Math.sin(tAngle - cam_.angle), Math.cos(tAngle - cam_.angle));
-    cam_.angle += diff * k;
-    cam_.r += (tR - cam_.r) * k;
-    cam_.y += (tY - cam_.y) * k;
-    cam_.look += (tLook - cam_.look) * k;
-    v.cur.set(Math.sin(cam_.angle) * cam_.r, cam_.y, Math.cos(cam_.angle) * cam_.r);
-    v.curLook.set(Math.sin(cam_.angle) * cam_.look, 0, Math.cos(cam_.angle) * cam_.look);
+    const dist = wide ? 30 : width >= 640 ? 34 : 40;
+    const fx = activeRef ? activeRef.position.x * 0.28 : 0;
+    const fz = activeRef ? activeRef.position.z * 0.28 : 0;
+    const tPos = v.tmp.set(fx, THREE.MathUtils.lerp(6.5, 4.2, zoom), THREE.MathUtils.lerp(dist + 3, dist - 3, zoom) + fz);
+    const k = 1 - Math.exp(-2.6 * d);
+    v.cur.lerp(tPos, k);
+    v.curLook.lerp(v.tmp.set(fx, 0, fz), k);
+
+    // Hero camera: close on the Sun, almost edge-on to the orbits, with pointer parallax.
+    v.px = THREE.MathUtils.damp(v.px, pointer.current.x, 3, d);
+    v.py = THREE.MathUtils.damp(v.py, pointer.current.y, 3, d);
+    const heroDist = wide ? 16 : 19;
+    v.hero.set(v.px * 1.1, 2.1 - v.py * 0.7, heroDist);
+
+    // Blend: distance is interpolated on a log scale so the pull-back feels even.
     const cam = state.camera as THREE.PerspectiveCamera;
-    cam.position.copy(v.cur);
-    cam.lookAt(v.curLook);
-    // Desktop: system sits between the list (left) and the card (right).
-    // Tablet / phone: system sits in the upper part, card below.
-    if (wide) cam.setViewOffset(width, height, width * (0.1 * zoom - 0.04 * (1 - zoom)), 0, width, height);
-    else cam.setViewOffset(width, height, 0, height * (0.18 + 0.06 * zoom), width, height);
+    const R = Math.exp(THREE.MathUtils.lerp(Math.log(v.hero.length()), Math.log(v.cur.length()), e));
+    cam.position.lerpVectors(v.hero, v.cur, e).setLength(R);
+    v.look.copy(v.curLook).multiplyScalar(e);
+    cam.lookAt(v.look);
+    // Hero: Sun on the right (desktop) / upper half (mobile).
+    // System: between the list and the card (desktop) / upper part (mobile).
+    if (wide) {
+      const sys = width * (0.05 * zoom - 0.04 * (1 - zoom));
+      cam.setViewOffset(width, height, THREE.MathUtils.lerp(-0.22 * width, sys, e), 0, width, height);
+    } else {
+      const sys = height * (0.18 + 0.06 * zoom);
+      cam.setViewOffset(width, height, 0, THREE.MathUtils.lerp(0.2 * height, sys, e), width, height);
+    }
     cam.updateMatrixWorld();
+    const iconFade = smooth01((rv - 0.55) / 0.4);
 
     // DOM overlays: icons above planets, stat beside the active planet.
     PRODUCTS.forEach((p, i) => {
@@ -229,7 +262,7 @@ function System({ lowPower }: { lowPower: boolean }) {
       const scale = (wide ? 0.5 : 0.42) + a * (wide ? 0.4 : 0.35);
       const visible = v.tmp.z < 1 && x > -60 && x < width + 60 && y > -60 && y < height + 60;
       el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -100%) scale(${scale.toFixed(3)})`;
-      el.style.opacity = visible ? (activeIdx < 0 ? 0.95 * behind : 0.35 * behind + a * 0.65).toFixed(3) : "0";
+      el.style.opacity = visible ? ((activeIdx < 0 ? 0.95 * behind : 0.35 * behind + a * 0.65) * iconFade).toFixed(3) : "0";
       el.style.zIndex = String(10 + Math.round(a * 50) + (behind === 1 ? 5 : 0));
     });
     if (overlay.stat) {
@@ -266,10 +299,10 @@ export default function OrbitScene({ lowPower, paused }: { lowPower: boolean; pa
   return (
     <Canvas
       style={{ position: "absolute", inset: 0 }}
-      dpr={lowPower ? [1, 1.5] : [1, 2]}
+      dpr={lowPower ? [1, 1.25] : [1, 1.6]}
       frameloop={paused ? "never" : "always"}
       gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
-      camera={{ fov: 30, near: 0.1, far: 400, position: [0, 9, 35] }}
+      camera={{ fov: 30, near: 0.1, far: 400, position: [0, 2.1, 16] }}
       onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}
     >
       <System lowPower={lowPower} />

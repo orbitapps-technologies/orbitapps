@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, animate, motion, useMotionValue, useMotionValueEvent, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import { useRef, useState } from "react";
+import { AnimatePresence, motion, useMotionValueEvent, useReducedMotion, useScroll } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 import { PRODUCTS, type Product } from "@/lib/products";
-import { STOPS, iconRegistry, overlay, stage } from "@/lib/universe";
-import { useDevice, useInView } from "@/lib/useDevice";
-import { OrbitScene } from "@/components/three/lazy";
+import { STOPS, setActiveStop, stage } from "@/lib/universe";
+import { smoothScrollTo } from "@/lib/scroll";
+import { useDevice } from "@/lib/useDevice";
 import { ProductMark } from "@/components/brand/Marks";
 import { cn } from "@/lib/utils";
 
@@ -16,18 +16,6 @@ const smooth = (a: number, b: number, x: number) => {
   return t * t * (3 - 2 * t);
 };
 const external = (href: string) => (href.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {});
-
-/** Number that counts up whenever its value changes. */
-function CountUp({ value }: { value: number }) {
-  const mv = useMotionValue(0);
-  const text = useTransform(mv, (n) => Math.round(n).toLocaleString("en-IN"));
-  useEffect(() => {
-    mv.set(value * 0.8);
-    const c = animate(mv, value, { duration: 1.4, ease: EASE });
-    return () => c.stop();
-  }, [mv, value]);
-  return <motion.span>{text}</motion.span>;
-}
 
 /** Three phone-shaped previews: real screenshots when provided, generated screens otherwise. */
 function Previews({ app }: { app: Product }) {
@@ -61,59 +49,10 @@ function Previews({ app }: { app: Product }) {
   );
 }
 
-/** App icons and the stat label, positioned every frame by the 3D scene. */
-function Overlays({ app }: { app: Product | null }) {
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-      {PRODUCTS.map((p) => (
-        <div
-          key={p.id}
-          ref={(el) => {
-            if (!el) return;
-            iconRegistry.set(p.id, el);
-            return () => {
-              iconRegistry.delete(p.id);
-            };
-          }}
-          className="absolute left-0 top-0 flex origin-bottom flex-col items-center will-change-transform"
-          style={{ opacity: 0 }}
-        >
-          <ProductMark product={p} size="lg" />
-          <span className="h-10 w-px bg-gradient-to-b from-white/70 to-transparent" />
-        </div>
-      ))}
-      <div
-        ref={(el) => {
-          overlay.stat = el;
-          return () => {
-            overlay.stat = null;
-          };
-        }}
-        className="absolute left-0 top-0 z-[80] will-change-transform"
-        style={{ opacity: 0 }}
-      >
-        {app?.stat && (
-          <div key={app.id}>
-            <p className="font-display text-[clamp(1.6rem,3vw,2.6rem)] leading-none text-white">
-              <CountUp value={app.stat.value} />
-              {app.stat.suffix}
-            </p>
-            <p className="label-mono mt-2 flex items-center gap-2 !text-[0.6rem]">
-              <span className="h-px w-5 bg-white/40" />
-              {app.stat.label}
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export function ProductsOrbit() {
   const ref = useRef<HTMLElement>(null);
   const reduce = useReducedMotion();
   const device = useDevice();
-  const inView = useInView(ref, "200px");
   const [active, setActive] = useState(0);
 
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
@@ -123,6 +62,7 @@ export function ProductsOrbit() {
     const focus = Math.min(STOPS - 1, i + smooth(0.35, 0.95, raw - i));
     stage.focus = focus;
     setActive(Math.round(focus));
+    setActiveStop(Math.round(focus));
   });
 
   const app = active > 0 ? PRODUCTS[active - 1] : null;
@@ -131,15 +71,12 @@ export function ProductsOrbit() {
     if (!el) return;
     const range = el.offsetHeight - window.innerHeight;
     const top = el.offsetTop + (range * (i + 0.65)) / (STOPS - 1);
-    window.scrollTo({ top, behavior: reduce ? "auto" : "smooth" });
+    smoothScrollTo(top, !!reduce);
   };
 
   return (
     <section id="products" ref={ref} aria-labelledby="apps-title" style={{ height: `${STOPS * 80 + 40}svh` }} className="relative">
       <div className="sticky top-0 h-svh overflow-hidden">
-        {device?.webgl && <OrbitScene lowPower={device.lowPower} paused={!inView} />}
-        {device?.webgl && <Overlays app={app} />}
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black to-transparent" />
         <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-[52%] bg-gradient-to-t from-black via-black/75 to-transparent lg:hidden" />
         <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 z-10 hidden w-[36%] bg-gradient-to-r from-black via-black/80 to-transparent lg:block" />
 

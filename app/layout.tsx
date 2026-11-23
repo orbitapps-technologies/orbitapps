@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Archivo, Geist_Mono } from "next/font/google";
+import { Archivo, IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
 import "./globals.css";
 
 const archivo = Archivo({
@@ -9,9 +9,17 @@ const archivo = Archivo({
   display: "swap",
 });
 
-const mono = Geist_Mono({
+const instrument = Instrument_Sans({
   subsets: ["latin"],
-  variable: "--font-geist-mono",
+  variable: "--font-instrument",
+  axes: ["wdth"],
+  display: "swap",
+});
+
+const mono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-plex-mono",
   display: "swap",
 });
 
@@ -36,20 +44,13 @@ export const viewport: Viewport = {
   colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${archivo.variable} ${mono.variable} antialiased`}>
-      <body className="min-h-svh bg-black text-ink">
-        <a
-          href="#main"
-          className="sr-only z-50 bg-white px-4 py-2 text-black focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
-        >
-          Skip to content
-        </a>
-        {children}
-      </body>
+    <html lang="en" className={`${archivo.variable} ${instrument.variable} ${mono.variable}`}>
+      <body>{children}</body>
     </html>
   );
 }

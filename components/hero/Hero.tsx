@@ -5,8 +5,6 @@ import { motion, useReducedMotion, useScroll, useTransform, type Variants } from
 import { ArrowRight } from "lucide-react";
 import { SITE } from "@/lib/site";
 import { PRODUCTS } from "@/lib/products";
-import { useDevice, useInView } from "@/lib/useDevice";
-import { HeroSun } from "@/components/three/lazy";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 const LINES = ["Building products", "that move the", "world forward."];
@@ -23,20 +21,14 @@ const fade: Variants = {
 export function Hero() {
   const ref = useRef<HTMLElement>(null);
   const reduce = useReducedMotion();
-  const device = useDevice();
-  const inView = useInView(ref);
   const init = reduce ? false : "hidden";
 
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
   const y = useTransform(scrollYProgress, [0, 1], [0, -140]);
-  const fadeOut = useTransform(scrollYProgress, [0, 0.75], [1, 0]);
-  const sceneScale = useTransform(scrollYProgress, [0, 1], [1, 1.15]);
+  const fadeOut = useTransform(scrollYProgress, [0, 0.6], [1, 0]);
 
   return (
     <section id="top" ref={ref} aria-labelledby="hero-title" className="relative isolate flex min-h-svh items-end overflow-hidden pb-14 pt-28 lg:items-center lg:pb-0">
-      <motion.div style={reduce ? undefined : { opacity: fadeOut, scale: sceneScale }} className="absolute inset-0 -z-10">
-        {device?.webgl && <HeroSun lowPower={device.lowPower} paused={!inView} />}
-      </motion.div>
       <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-1/2 bg-gradient-to-t from-black via-black/60 to-transparent lg:hidden" />
 
       <motion.div style={reduce ? undefined : { y, opacity: fadeOut }} className="w-full px-5 md:px-10 lg:px-14">

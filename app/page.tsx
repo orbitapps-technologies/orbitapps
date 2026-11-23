@@ -1,11 +1,4 @@
-import { Navbar } from "@/components/site/Navbar";
-import { SmoothScroll } from "@/components/site/SmoothScroll";
-import { Hero } from "@/components/hero/Hero";
-import { ProductsOrbit } from "@/components/sections/ProductsOrbit";
-import { Services } from "@/components/sections/Services";
-import { About } from "@/components/sections/About";
-import { Careers } from "@/components/sections/Careers";
-import { Contact } from "@/components/sections/Contact";
+import { SpaceApp } from "@/components/space/SpaceApp";
 import { SITE } from "@/lib/site";
 import { PRODUCTS } from "@/lib/products";
 
@@ -35,16 +28,7 @@ export default function Home() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <SmoothScroll />
-      <Navbar />
-      <main id="main">
-        <Hero />
-        <ProductsOrbit />
-        <Services />
-        <About />
-        <Careers />
-        <Contact />
-      </main>
+      <SpaceApp />
     </>
   );
 }
