@@ -75,9 +75,11 @@ export function CameraRig({ parallax = true, reducedMotion = false }: { parallax
     // Shift the subject sideways/up so it sits beside the text, not under it.
     camera.setViewOffset(w, h, -st.sx * w, st.sy * h, w, h);
     camera.updateProjectionMatrix();
+    if (process.env.NODE_ENV !== "production") document.body.dataset.cam = JSON.stringify({ pos: st.pos.toArray().map((v) => +v.toFixed(2)), tgt: st.tgt.toArray().map((v) => +v.toFixed(2)), u: +rt.rig.u.toFixed(3) });
     rt.camera.x = st.pos.x;
     rt.camera.y = st.pos.y;
     rt.camera.z = st.pos.z;
   });
   return null;
 }
+

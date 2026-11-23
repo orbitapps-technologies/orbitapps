@@ -275,6 +275,7 @@ export function Horizon({ nodes = 1000, segments = 96 }: { nodes?: number; segme
   const { center, radius } = WORLD.planet;
   const planet = useRef<THREE.Group>(null);
   const sun = useRef<THREE.Sprite>(null);
+  const sunGroup = useRef<THREE.Group>(null);
   const flare = useRef<THREE.Sprite>(null);
   const sunPos = useMemo(() => new THREE.Vector3(WORLD.sun.x, WORLD.sun.yHidden, WORLD.sun.z), []);
 
@@ -282,7 +283,7 @@ export function Horizon({ nodes = 1000, segments = 96 }: { nodes?: number; segme
     () =>
       new THREE.ShaderMaterial({
         defines: { OCTAVES: 4 },
-        uniforms: { uSun: { value: sunPos }, uRise: { value: 0 }, uAtmo: { value: new THREE.Color("#aab3c0") } },
+        uniforms: { uSun: { value: sunPos }, uRise: { value: 0 }, uAtmo: { value: new THREE.Color("#7f95c4") } },
         vertexShader: /* glsl */ `
           varying vec3 vN;
           varying vec3 vW;
@@ -310,14 +311,18 @@ export function Horizon({ nodes = 1000, segments = 96 }: { nodes?: number; segme
             float ndl = dot(N, L);
             float n = fbm(vO * 9.0);
             float m = fbm(vO * 34.0 + 4.0);
-            vec3 ground = mix(vec3(0.010, 0.012, 0.016), vec3(0.028, 0.032, 0.042), smoothstep(-0.3, 0.6, n));
+            vec3 ground = mix(vec3(0.0015, 0.0017, 0.0024), vec3(0.006, 0.0068, 0.009), smoothstep(-0.3, 0.6, n));
             ground *= 0.8 + 0.4 * m;
             float day = smoothstep(-0.12, 0.4, ndl);
-            vec3 col = ground * (0.35 + day * 2.2);
-            float fres = pow(1.0 - max(dot(N, V), 0.0), 5.0);
+            vec3 col = ground * (0.25 + day * 0.7);
+            float fres = pow(1.0 - max(dot(N, V), 0.0), 16.0);
             float toward = smoothstep(-0.6, 0.5, ndl);
-            col += uAtmo * fres * (0.18 + 1.8 * toward * (0.35 + 0.65 * uRise));
-            col += vec3(1.0, 0.86, 0.7) * fres * toward * toward * uRise * 0.6;
+            // thin cool atmosphere line, warming toward the rising Sun
+            col += uAtmo * fres * (0.05 + 0.3 * toward * (0.35 + 0.65 * uRise));
+            col += vec3(1.0, 0.62, 0.28) * fres * toward * toward * uRise * 0.9;
+            // warm sunrise wash along the horizon, strongest under the Sun
+            float limb = pow(1.0 - max(dot(N, V), 0.0), 12.0);
+            col += vec3(1.0, 0.55, 0.22) * limb * pow(max(dot(normalize(vec3(L.x, 0.0, L.z)), normalize(vec3(-V.x, 0.0, -V.z))), 0.0), 6.0) * uRise * 0.5;
             gl_FragColor = vec4(col, 1.0);
             #include <tonemapping_fragment>
             #include <colorspace_fragment>
@@ -326,7 +331,7 @@ export function Horizon({ nodes = 1000, segments = 96 }: { nodes?: number; segme
       }),
     [sunPos],
   );
-  const atmo = useMemo(() => rimMaterial({ color: "#a3adbb", intensity: 0.7, edge: 0.22, power: 1.6 }), []);
+  const atmo = useMemo(() => rimMaterial({ color: "#8aa0d0", intensity: 0.35, edge: 0.12, power: 2.2 }), []);
   const cities = useMemo(() => {
     const r = seeded(99);
     const facing = new THREE.Vector3(0, -28, -262).sub(new THREE.Vector3(...center)).normalize();
@@ -342,7 +347,7 @@ export function Horizon({ nodes = 1000, segments = 96 }: { nodes?: number; segme
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-    const mat = new THREE.PointsMaterial({ color: new THREE.Color("#cdd0d6"), size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0.55, fog: false, depthWrite: false, blending: THREE.AdditiveBlending });
+    const mat = new THREE.PointsMaterial({ color: new THREE.Color("#ffd7a3"), size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0.35, fog: false, depthWrite: false, blending: THREE.AdditiveBlending });
     return { geo, mat };
   }, [nodes, radius, center]);
   useEffect(
@@ -364,14 +369,16 @@ export function Horizon({ nodes = 1000, segments = 96 }: { nodes?: number; segme
     const rise = easeOutCubic(Math.min(1, rt.arrive.contact * 0.7 + rt.inside.contact * 0.6));
     sunPos.y = THREE.MathUtils.lerp(WORLD.sun.yHidden, WORLD.sun.yRisen, rise);
     ground.uniforms.uRise.value = rise;
-    atmo.uniforms.uIntensity.value = 0.6 + rise * 0.9;
-    if (sun.current) {
-      sun.current.position.copy(sunPos);
-      (sun.current.material as THREE.SpriteMaterial).opacity = a;
+    atmo.uniforms.uIntensity.value = 0.18 + rise * 0.3;
+    if (sunGroup.current) {
+      sunGroup.current.position.copy(sunPos);
+      sunGroup.current.visible = a > 0.01;
     }
+    if (sun.current) (sun.current.material as THREE.SpriteMaterial).opacity = a;
+    sunGroup.current?.children.slice(1).forEach((c) => ((c as THREE.Sprite).material.opacity = (c === sunGroup.current?.children[1] ? 0.55 : 0.2) * a * (0.5 + 0.5 * rise)));
     if (flare.current) {
       flare.current.position.copy(sunPos);
-      (flare.current.material as THREE.SpriteMaterial).opacity = (0.15 + rise * 0.35) * a;
+      (flare.current.material as THREE.SpriteMaterial).opacity = (0.05 + rise * 0.18) * a;
     }
     cities.mat.size = 1.4 * s.gl.getPixelRatio();
   });
@@ -387,11 +394,19 @@ export function Horizon({ nodes = 1000, segments = 96 }: { nodes?: number; segme
         </mesh>
         <points geometry={cities.geo} material={cities.mat} />
       </group>
-      <sprite ref={sun} scale={170}>
-        <spriteMaterial map={glowTexture()} color={new THREE.Color(3.2, 2.9, 2.6)} transparent toneMapped={false} fog={false} depthWrite={false} blending={THREE.AdditiveBlending} />
-      </sprite>
-      <sprite ref={flare} scale={[1400, 9, 1]}>
-        <spriteMaterial map={glowTexture()} color="#d6d9de" transparent opacity={0.2} fog={false} depthWrite={false} blending={THREE.AdditiveBlending} />
+      <group ref={sunGroup}>
+        <sprite ref={sun} scale={90}>
+          <spriteMaterial map={glowTexture()} color={new THREE.Color(2.4, 2.0, 1.5)} transparent toneMapped={false} fog={false} depthWrite={false} blending={THREE.AdditiveBlending} />
+        </sprite>
+        <sprite scale={280}>
+          <spriteMaterial map={glowTexture()} color="#ffb04a" transparent opacity={0.55} fog={false} depthWrite={false} blending={THREE.AdditiveBlending} />
+        </sprite>
+        <sprite scale={620}>
+          <spriteMaterial map={glowTexture()} color="#ff7a1f" transparent opacity={0.2} fog={false} depthWrite={false} blending={THREE.AdditiveBlending} />
+        </sprite>
+      </group>
+      <sprite ref={flare} scale={[700, 16, 1]}>
+        <spriteMaterial map={glowTexture()} color="#ffb870" transparent opacity={0.1} fog={false} depthWrite={false} blending={THREE.AdditiveBlending} />
       </sprite>
     </>
   );

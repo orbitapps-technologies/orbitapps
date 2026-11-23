@@ -44,6 +44,8 @@ export const rt = {
     vh: 0,
   },
   worlds: [] as WorldScreen[],
+  /** About: which principle row is centred on screen (-1 = none). */
+  pillar: -1,
   pointer: { x: 0, y: 0 },
 };
 

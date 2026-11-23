@@ -12,7 +12,9 @@ import { AppWorlds } from "./AppWorlds";
 import { CameraRig } from "./CameraRig";
 import { Proximity } from "./Core";
 import { HeroSun } from "./Sun";
-import { Gyro, Horizon, Station } from "./Landmarks";
+import { SunRise } from "./SunRise";
+import { Emblem } from "./Emblem";
+import { Lab } from "./Lab";
 import { Ship } from "./Ship";
 import { Nebula, Stars } from "./Sky";
 
@@ -109,14 +111,14 @@ export default function SpaceScene() {
       <Proximity center={WORLD.apps.center} range={170}>
         <AppWorlds apps={APPS} lite={tier === "low"} segments={cfg.sphereSegments} reducedMotion={reduced} />
       </Proximity>
-      <Proximity center={WORLD.station} range={110}>
-        <Station count={MODULES.length} reducedMotion={reduced} />
+      <Proximity center={WORLD.station} range={130}>
+        <Lab count={MODULES.length} reducedMotion={reduced} segments={cfg.sphereSegments} />
       </Proximity>
       <Proximity center={WORLD.gyro} range={110}>
-        <Gyro reducedMotion={reduced} segments={cfg.sphereSegments} />
+        <Emblem reducedMotion={reduced} segments={cfg.sphereSegments} />
       </Proximity>
       <Proximity center={[0, -36, -320]} range={200}>
-        <Horizon nodes={cfg.planetNodes} segments={cfg.sphereSegments * 2} />
+        <SunRise reducedMotion={reduced} segments={cfg.sphereSegments} />
       </Proximity>
       <Ship lite={tier === "low"} />
       <Preload all />

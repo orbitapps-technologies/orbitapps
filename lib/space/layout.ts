@@ -6,8 +6,8 @@ export const WORLD = {
   apps: { center: [0, -6, -72] as Vec3 },
   station: [0, -16, -150] as Vec3,
   gyro: [0, -30, -205] as Vec3,
-  planet: { center: [0, -190, -330] as Vec3, radius: 150 },
-  sun: { x: 250, z: -900, yHidden: -185, yRisen: -112 },
+  planet: { center: [0, -195, -330] as Vec3, radius: 150 },
+  sun: { x: 170, z: -900, yHidden: -190, yRisen: -128 },
 };
 
 /** Scroll distance (in viewport heights) spent at each app. */
@@ -61,6 +61,34 @@ export function appSlots(count: number): AppSlot[] {
   });
 }
 
+/* ------------------------------------------------------------------ */
+/* Build — the OrbitApps Lab: a ringed planet with one satellite per capability */
+/* ------------------------------------------------------------------ */
+
+export const LAB = { planetR: 3.2, ringIn: 4.3, ringOut: 7.2, ringTilt: [0.42, 0, -0.18] as Vec3 };
+
+export interface LabSatellite {
+  radius: number;
+  angle: number;
+  node: number;
+  incl: number;
+  /** World position of the satellite. */
+  position: Vec3;
+}
+
+/** Each capability gets its own tilted orbit around the Lab planet. */
+export function labSatellites(count: number): LabSatellite[] {
+  const c = WORLD.station;
+  return Array.from({ length: count }, (_, i) => {
+    const radius = 9 + i * 2.1;
+    const angle = 0.9 + i * ((Math.PI * 2) / Math.max(count, 1)) * 0.62;
+    const node = i * 1.7;
+    const incl = [0.32, -0.22, 0.4, -0.3, 0.18, -0.36][i % 6];
+    const p = tiltPoint([Math.cos(angle) * radius, 0, Math.sin(angle) * radius], node, incl);
+    return { radius, angle, node, incl, position: [c[0] + p[0], c[1] + p[1], c[2] + p[2]] };
+  });
+}
+
 /** Station module height, and which side of the truss it docks on. */
 export const SERVICE_SPACING = 7;
 export const serviceY = (i: number) => 4 - i * SERVICE_SPACING;
@@ -69,6 +97,9 @@ export const serviceSide = (i: number) => (i % 2 === 0 ? 1 : -1);
 const add = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 const mul = (a: Vec3, s: number): Vec3 => [a[0] * s, a[1] * s, a[2] * s];
 const mid = (a: Vec3, b: Vec3) => mul(add(a, b), 0.5);
+const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const len = (a: Vec3) => Math.hypot(a[0], a[1], a[2]);
+const norm = (a: Vec3) => mul(a, 1 / (len(a) || 1));
 const kf = (at: number, pos: Vec3, target: Vec3, sx = 0, sy = 0): Keyframe => ({ at, pos, target, sx, sy });
 
 function appView(slot: { angle: number; position: Vec3 }, portrait: boolean) {
@@ -166,25 +197,38 @@ export function buildKeyframes(m: Measure) {
   const lv = lastView as { pos: Vec3; target: Vec3 } | null;
   if (lv) frames.push(kf(appsEnd, lv.pos, lv.target, asx, asy));
 
-  // Build — the station, one module per capability
-  const st = WORLD.station;
-  const stPos = add(st, portrait ? [7, 3, 30] : [10, 4, 25]);
-  const stTgt = add(st, [0, -1.5, 0]);
+  // Build — circle the Lab planet, stopping at each capability's satellite
+  const lab = WORLD.station;
+  const sats = labSatellites(servicePanels.length);
+  const stPos = add(lab, portrait ? [4, 9, 34] : [-6, 7, 28]);
+  const stTgt = lab;
+  const bsx = portrait ? 0 : 0.24;
+  const bsy = portrait ? 0.22 : 0;
   if (lv) frames.push(kf((appsEnd + s.build.top) / 2, add(mid(lv.pos, stPos), [0, 5, 0]), mid(lv.target, stTgt)));
-  frames.push(kf(s.build.top, stPos, stTgt, portrait ? 0 : 0.2, portrait ? 0.16 : 0));
+  frames.push(kf(s.build.top, stPos, stTgt, bsx, bsy));
+  const satView = (sat: LabSatellite) => {
+    const out = norm(sub(sat.position, lab));
+    const pos = add(add(sat.position, mul(out, portrait ? 8.5 : 7)), [0, 2.4, 0]);
+    // aim at the satellite itself (a touch above it) so it sits centred in its half of the screen
+    return { pos, target: add(add(sat.position, [0, 0.4, 0]), mul(sub(lab, sat.position), 0.04)) };
+  };
   let lastMod: { pos: Vec3; target: Vec3 } | null = null;
-  const msx = portrait ? 0 : -0.27;
-  const msy = portrait ? 0.24 : 0;
   servicePanels.forEach((at, i) => {
-    const m0 = add(st, [0, serviceY(i), 0]);
-    const pos = add(m0, portrait ? [6, 2.2, 13] : [6.5, 1.8, 11]);
-    const target = add(m0, [0, -0.2, 0]);
-    frames.push(kf(at, pos, target, msx, msy));
-    lastMod = { pos, target };
+    const v = satView(sats[i]);
+    if (lastMod && i > 0) {
+      // swing wide around the planet between satellites
+      const m = mid(lastMod.pos, v.pos);
+      const out = norm(sub(m, lab));
+      const r = Math.max(len(sub(lastMod.pos, lab)), len(sub(v.pos, lab))) + 4;
+      const prevAt = servicePanels[i - 1];
+      frames.push(kf((prevAt + at) / 2, add(add(lab, mul(out, r)), [0, 3, 0]), mid(lastMod.target, v.target), bsx, bsy));
+    }
+    frames.push(kf(at, v.pos, v.target, bsx, bsy));
+    lastMod = v;
   });
   const buildEnd = s.build.top + s.build.height - vh;
   const lm = lastMod as { pos: Vec3; target: Vec3 } | null;
-  if (lm) frames.push(kf(buildEnd, lm.pos, lm.target, msx, msy));
+  if (lm) frames.push(kf(buildEnd, lm.pos, lm.target, bsx, bsy));
 
   // About — the gyroscope
   const g = WORLD.gyro;
@@ -194,7 +238,14 @@ export function buildKeyframes(m: Measure) {
   if (lm) frames.push(kf((buildEnd + s.about.top) / 2, add(mid(lm.pos, gPos), [8, 2, 0]), mid(lm.target, g)));
   frames.push(kf(s.about.top, gPos, g, gsx, gsy));
   const aboutEnd = Math.max(s.about.top + s.about.height - vh, s.about.top + 1);
-  frames.push(kf(aboutEnd, gPos, g, gsx, gsy));
+  // Slowly circle the emblem while reading About and Careers.
+  const around = (deg: number, lift: number): Vec3 => {
+    const a = (deg * Math.PI) / 180;
+    const r = portrait ? 15 : 13;
+    return add(g, [Math.sin(a) * r, 0.6 + lift, Math.cos(a) * r]);
+  };
+  frames.push(kf(s.about.top + (aboutEnd - s.about.top) * 0.5, around(-35, 2.2), g, gsx, gsy));
+  frames.push(kf(aboutEnd, around(-70, 3.2), g, gsx, gsy));
 
   // Contact — over the planet, at sunrise
   const cPos: Vec3 = [0, -28, -262];
@@ -207,3 +258,4 @@ export function buildKeyframes(m: Measure) {
   for (let i = 1; i < frames.length; i++) if (frames[i].at <= frames[i - 1].at) frames[i].at = frames[i - 1].at + 1;
   return { frames, anchors };
 }
+

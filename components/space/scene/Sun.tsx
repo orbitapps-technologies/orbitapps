@@ -8,13 +8,13 @@ import { WORLD } from "@/lib/space/layout";
 import { intro, rt } from "@/lib/space/store";
 import { NOISE, damp, glowTexture, ringGeometry } from "./materials";
 
-export const SUN_R = 1.3;
+export const SUN_R = 1.15;
 
 /** Boiling photosphere: granulation, slow convection bands, limb darkening. */
 function surfaceMaterial() {
   return new THREE.ShaderMaterial({
     defines: { OCTAVES: 4 },
-    uniforms: { uTime: { value: 0 } },
+    uniforms: { uTime: { value: 0 }, uBright: { value: 1 } },
     vertexShader: /* glsl */ `
       varying vec3 vN;
       varying vec3 vW;
@@ -29,6 +29,7 @@ function surfaceMaterial() {
     `,
     fragmentShader: /* glsl */ `
       uniform float uTime;
+      uniform float uBright;
       varying vec3 vN;
       varying vec3 vW;
       varying vec3 vO;
@@ -47,14 +48,14 @@ function surfaceMaterial() {
 
         vec3 deep = vec3(0.75, 0.16, 0.02);
         vec3 orange = vec3(1.0, 0.48, 0.08);
-        vec3 gold = vec3(1.0, 0.78, 0.32);
+        vec3 gold = vec3(1.0, 0.66, 0.22);
         vec3 white = vec3(1.0, 0.95, 0.82);
         vec3 col = mix(deep, orange, smoothstep(0.15, 0.5, heat));
-        col = mix(col, gold, smoothstep(0.45, 0.75, heat));
+        col = mix(col, gold, smoothstep(0.5, 0.85, heat));
         col = mix(col, white, smoothstep(0.82, 1.0, heat) * limb * 0.6);
         col *= mix(0.45, 1.0, limb);
         col += vec3(1.0, 0.45, 0.1) * pow(1.0 - mu, 3.0) * 0.6;   // hot rim
-        gl_FragColor = vec4(col * 1.05, 1.0);
+        gl_FragColor = vec4(col * 0.62 * uBright, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }
@@ -161,9 +162,9 @@ function prominenceMaterial() {
   });
 }
 
-const glow = (color: string, scale: number, opacity: number) => (
+const glow = (color: string, scale: number, opacity: number, dim = 1) => (
   <sprite scale={scale}>
-    <spriteMaterial map={glowTexture()} color={color} transparent opacity={opacity} depthWrite={false} fog={false} blending={THREE.AdditiveBlending} />
+    <spriteMaterial map={glowTexture()} color={color} transparent opacity={opacity * dim} depthWrite={false} fog={false} blending={THREE.AdditiveBlending} />
   </sprite>
 );
 
@@ -238,7 +239,8 @@ export function HeroSun({ colors, reducedMotion = false, segments = 64 }: { colo
 }
 
 /** The OrbitApps Sun: photosphere, corona, prominences and glow. */
-export function Sun({ reducedMotion = false, segments = 64 }: { reducedMotion?: boolean; segments?: number }) {
+/** `dim` (0–1) turns down the surface and glow, e.g. behind text. */
+export function Sun({ reducedMotion = false, segments = 64, dim = 1 }: { reducedMotion?: boolean; segments?: number; dim?: number }) {
   const body = useRef<THREE.Mesh>(null);
   const surface = useMemo(surfaceMaterial, []);
   const corona = useMemo(coronaMaterial, []);
@@ -250,6 +252,8 @@ export function Sun({ reducedMotion = false, segments = 64 }: { reducedMotion?: 
     const k = reducedMotion ? 0.15 : 1;
     const t = s.clock.elapsedTime * k;
     surface.uniforms.uTime.value = t;
+    surface.uniforms.uBright.value = 0.35 + 0.65 * dim;
+    corona.uniforms.uOpacity.value = dim;
     corona.uniforms.uTime.value = t;
     promMat.uniforms.uTime.value = t;
     if (body.current) body.current.rotation.y += Math.min(delta, 1 / 20) * 0.03 * k;
@@ -266,9 +270,9 @@ export function Sun({ reducedMotion = false, segments = 64 }: { reducedMotion?: 
         </mesh>
         <lineSegments geometry={promGeo} material={promMat} renderOrder={3} />
       </Billboard>
-      {glow("#ffd9a0", SUN_R * 3.6, 0.45)}
-      {glow("#ff9a3a", SUN_R * 8, 0.28)}
-      {glow("#ff6a1a", SUN_R * 18, 0.1)}
+      {glow("#ffd9a0", SUN_R * 3.6, 0.45, dim)}
+      {glow("#ff9a3a", SUN_R * 8, 0.28, dim)}
+      {glow("#ff6a1a", SUN_R * 18, 0.1, dim * dim)}
       
       <pointLight color="#ffc58a" intensity={40} distance={40} decay={1.6} />
     </group>
