@@ -1,51 +1,81 @@
-import { ArrowUp, Building2, Mail } from "lucide-react";
+"use client";
+
+import { motion, useReducedMotion } from "framer-motion";
+import { ArrowRight, ArrowUp } from "lucide-react";
 import { NAV_LINKS, SITE } from "@/lib/site";
-import { Separator } from "@/components/ui/separator";
 import { Wordmark } from "@/components/brand/Marks";
+import { EASE } from "@/components/motion/Reveal";
 
 export function Contact() {
+  const reduce = useReducedMotion();
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(SITE.address.mapsQuery)}`;
-  return (
-    <section id="contact" className="relative px-5 pb-10 pt-28 md:px-10 md:pt-36">
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[70%] bg-[radial-gradient(60%_60%_at_50%_100%,rgba(255,179,71,0.12),transparent_70%)]" />
-      <div className="relative mx-auto max-w-6xl">
-        <h2 className="text-lg text-muted-foreground">Get in touch</h2>
-        <a
-          href={`mailto:${SITE.email}`}
-          className="font-wide group mt-4 inline-flex max-w-full items-center gap-4 break-all text-[clamp(1.4rem,4.6vw,4rem)] font-light leading-tight text-ink transition hover:text-solar"
-        >
-          <Mail className="size-[0.7em] shrink-0 text-solar transition-transform group-hover:-rotate-6" aria-hidden />
-          {SITE.email}
-        </a>
+  const rows = [
+    { label: "Email", value: SITE.email, href: `mailto:${SITE.email}` },
+    { label: "Location", value: "Bengaluru, India", href: mapsUrl },
+    { label: "Registered office", value: SITE.address.lines.join(", "), href: mapsUrl },
+  ];
 
-        <div className="mt-20 grid gap-12 md:grid-cols-3">
-          <div className="md:col-span-2">
-            <h3 className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Building2 className="size-4" aria-hidden />
-              Registered office
-            </h3>
-            <address className="mt-3 not-italic leading-relaxed text-ink">
-              {SITE.address.lines.map((l) => (
-                <span key={l} className="block">
-                  {l}
-                </span>
-              ))}
-            </address>
-            <a
-              href={mapsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-4 inline-block text-sm text-sky-300 underline-offset-4 hover:underline"
-            >
-              Open in Google Maps
-            </a>
-          </div>
+  return (
+    <section id="contact" className="relative overflow-hidden border-t border-white/10">
+      <div className="px-5 pt-28 md:px-10 md:pt-36 lg:px-14">
+        <p className="label-mono flex items-center gap-4">
+          <span className="h-px w-10 bg-white/40" />
+          Contact
+        </p>
+        <motion.h2
+          initial={reduce ? false : { opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-15% 0px" }}
+          transition={{ duration: 1, ease: EASE }}
+          className="font-display text-chrome mt-5 text-[clamp(2.4rem,6.4vw,6rem)]"
+        >
+          Let&apos;s build
+          <br />
+          what&apos;s next.
+        </motion.h2>
+
+        <dl className="mt-16 max-w-4xl">
+          {rows.map((r) => (
+            <div key={r.label} className="border-t border-white/10 py-6">
+              <dt className="label-mono !text-[0.66rem]">{r.label}</dt>
+              <dd className="mt-2">
+                <a
+                  href={r.href}
+                  {...(r.href.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                  className="text-lg text-white transition hover:text-white/70"
+                >
+                  {r.value}
+                </a>
+              </dd>
+            </div>
+          ))}
+        </dl>
+
+        <a href={`mailto:${SITE.email}`} className="group mt-10 inline-flex items-center gap-6">
+          <span className="font-display border-b border-white pb-2 text-[clamp(1.4rem,2.6vw,2rem)]">Get in touch</span>
+          <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" aria-hidden />
+          <span className="hidden text-ink-muted sm:inline">Tell us what you are building.</span>
+        </a>
+      </div>
+
+      {/* Planet horizon */}
+      <div aria-hidden className="relative mt-24 h-[22rem] md:h-[28rem]">
+        <div className="absolute left-1/2 top-[38%] h-[220vw] w-[220vw] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,#0b0d14_92%,#1e293b_96%,#94a3b8_99%,#f8fafc_100%)] shadow-[0_-30px_120px_10px_rgba(148,163,184,0.35)] md:h-[180vw] md:w-[180vw]" />
+        <motion.div
+          className="absolute right-[12%] top-[34%] size-3 rounded-full bg-white shadow-[0_0_40px_16px_rgba(255,255,255,0.8),0_0_160px_60px_rgba(148,197,255,0.35)]"
+          animate={reduce ? undefined : { opacity: [0.7, 1, 0.7], scale: [1, 1.2, 1] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+        />
+      </div>
+
+      <footer className="relative -mt-44 border-t border-white/10 bg-black/40 px-5 py-8 backdrop-blur-sm md:-mt-52 md:px-10 lg:px-14">
+        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <Wordmark />
           <nav aria-label="Footer">
-            <h3 className="text-sm text-muted-foreground">Explore</h3>
-            <ul className="mt-3 space-y-2">
+            <ul className="flex flex-wrap gap-x-7 gap-y-2">
               {NAV_LINKS.map((l) => (
                 <li key={l.href}>
-                  <a href={l.href} className="text-ink transition hover:text-sky-300">
+                  <a href={l.href} className="label-mono transition hover:text-white">
                     {l.label}
                   </a>
                 </li>
@@ -53,34 +83,25 @@ export function Contact() {
             </ul>
           </nav>
         </div>
-
-        <Separator className="mt-20" />
-
-        <footer className="flex flex-col gap-6 py-8 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
-            <Wordmark />
-            <p className="text-sm text-muted-foreground">{SITE.location}</p>
-          </div>
-          <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+        <div className="mt-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <p className="label-mono !text-[0.62rem]">© {SITE.copyrightYear} OrbitApps Technologies LLP. All rights reserved.</p>
+          <ul className="flex flex-wrap gap-x-6 gap-y-2">
             {SITE.legal.map((l) => (
               <li key={l.href}>
-                <a href={l.href} className="transition hover:text-ink" target="_blank" rel="noopener noreferrer">
+                <a href={l.href} target="_blank" rel="noopener noreferrer" className="label-mono !text-[0.62rem] transition hover:text-white">
                   {l.label}
                 </a>
               </li>
             ))}
+            <li>
+              <a href="#top" className="label-mono inline-flex items-center gap-1.5 !text-[0.62rem] transition hover:text-white">
+                Back to top
+                <ArrowUp className="size-3" aria-hidden />
+              </a>
+            </li>
           </ul>
-        </footer>
-        <div className="flex items-center justify-between gap-4 pb-2 text-xs text-muted-foreground">
-          <p>
-            © {SITE.copyrightYear} ORBITAPPS TECHNOLOGIES LLP. All rights reserved.
-          </p>
-          <a href="#home" className="inline-flex items-center gap-1.5 transition hover:text-ink">
-            <ArrowUp className="size-3.5" aria-hidden />
-            Back to the universe
-          </a>
         </div>
-      </div>
+      </footer>
     </section>
   );
 }

@@ -1,15 +1,17 @@
 /**
- * PRODUCT CONFIGURATION — the planets of the OrbitApps universe.
+ * PRODUCT UNIVERSE — every OrbitApps app is a planet around the OrbitApps Sun.
  *
- * Every entry in PRODUCTS becomes a planet with its own orbital path, label,
- * legend entry, product card and details panel. To launch a new product,
- * add one object below. Orbit radius, inclination and speed are assigned
- * automatically if you leave the `orbit` fields out.
+ * Each entry automatically gets a planet, an orbit, a floating app icon and
+ * its own stop (card, stat, link) in the scroll experience.
  *
- * Only add products that are publicly released.
+ * ⚠️  DEMO DATA: entries marked `demo: true` are placeholders so the design can
+ * be seen with a full universe. Replace them with real apps, or set
+ * SHOW_DEMO_APPS = false, before going live.
  */
 
-export type FeatureIcon = "location" | "crash" | "upi" | "shield" | "users" | "spark";
+export const SHOW_DEMO_APPS = true;
+
+export type FeatureIcon = "location" | "crash" | "upi" | "shield" | "users" | "spark" | "mobile" | "bolt";
 
 export interface ProductFeature {
   icon: FeatureIcon;
@@ -17,102 +19,97 @@ export interface ProductFeature {
   description: string;
 }
 
-export interface PlanetLook {
-  /** Base surface colour */
-  color: string;
-  /** Darker tone used in surface bands */
-  deep: string;
-  /** Highlight / atmosphere colour */
-  glow: string;
-  /** Planet radius in scene units (Sun radius is 2.2) */
-  size: number;
-}
-
-export interface OrbitSettings {
-  /** Semi-major axis in scene units */
-  radius?: number;
-  /** 0 = circle. Keep below 0.2 so rings stay elegant */
-  eccentricity?: number;
-  /** Tilt of the orbital plane, in radians */
-  inclination?: number;
-  /** Rotation of the orbital plane around the Sun, in radians */
-  node?: number;
-  /** Seconds per full revolution at normal speed */
-  period?: number;
-  /** Starting position along the orbit (0–1) */
-  phase?: number;
+export interface ProductLink {
+  label: string;
+  href: string;
 }
 
 export interface Product {
   id: string;
   name: string;
-  status: "Live";
-  tagline: string;
+  status: "Live" | "Beta" | "Coming soon";
+  /** Short labels shown above the name, e.g. ["Family safety", "Location"] */
+  tags: string[];
+  category: string;
+  summary: string;
   description: string;
-  /** Where the "Explore Product" button goes */
-  url: string;
-  /** Optional path to a logo in /public. A generated glyph is used otherwise. */
+  /** Primary button. Falls back to the first entry of `links`. */
+  website?: ProductLink;
+  links: ProductLink[];
+  /** Optional app icon in /public. A generated icon in the app's colours is used otherwise. */
   logo?: string;
-  screenshot?: { src: string; alt: string };
+  /** Optional app screenshots (paths in /public or full URLs). Generated previews are used otherwise. */
+  screenshots?: string[];
+  /** Optional headline number, counted up on screen (e.g. downloads). */
+  stat?: { value: number; suffix?: string; label: string };
   features: ProductFeature[];
-  look: PlanetLook;
-  orbit?: OrbitSettings;
+  identity: { accent: string; glow: string; deep: string };
+  /** Placeholder entry — not a real product. */
+  demo?: boolean;
 }
 
-export const PRODUCTS: Product[] = [
-  {
-    id: "lookzon",
-    name: "Lookzon",
-    status: "Live",
-    tagline: "Family safety, in real time.",
-    description:
-      "India's premier family safety and tracking application, featuring real-time location tracking, vehicle crash detection, and UPI AutoPay integration.",
-    // Replace with the Play Store / App Store listing when available.
-    url: "https://www.orbitappstechnologiesllp.com/#products",
-    screenshot: {
-      src: "https://www.orbitappstechnologiesllp.com/images/lookzon-mockup.png",
-      alt: "Lookzon app on a smartphone showing live family locations on a map",
-    },
-    features: [
-      {
-        icon: "location",
-        title: "Real-time location",
-        description: "Live family tracking with precise, battery-efficient updates.",
-      },
-      {
-        icon: "crash",
-        title: "Crash detection",
-        description: "Advanced vehicle crash detection with instant SOS alerts.",
-      },
-      {
-        icon: "upi",
-        title: "UPI AutoPay",
-        description: "Seamless subscriptions powered by native UPI AutoPay.",
-      },
-    ],
-    look: {
-      color: "#38BDF8",
-      deep: "#0B3B8C",
-      glow: "#7DD3FC",
-      size: 0.85,
-    },
-    orbit: {
-      radius: 7.6,
-      eccentricity: 0.09,
-      inclination: 0.06,
-      node: 0.4,
-      period: 42,
-      phase: 0.12,
-    },
-  },
+const LOOKZON: Product = {
+  id: "lookzon",
+  name: "Lookzon",
+  status: "Live",
+  tags: ["Family safety", "Location", "SOS"],
+  category: "Family safety",
+  summary: "Family safety and tracking, built for India.",
+  description:
+    "India's premier family safety and tracking application, featuring real-time location tracking, vehicle crash detection, and UPI AutoPay integration.",
+  screenshots: ["https://www.orbitappstechnologiesllp.com/images/lookzon-mockup.png"],
+  links: [
+    { label: "Contact Lookzon support", href: "mailto:lookzonsupport@gmail.com" },
+    { label: "Privacy policy", href: "https://www.orbitappstechnologiesllp.com/privacy-policy" },
+  ],
+  features: [
+    { icon: "location", title: "Real-time location", description: "Live family tracking with precise, battery-efficient updates." },
+    { icon: "crash", title: "Crash detection", description: "Advanced vehicle crash detection with instant SOS alerts." },
+    { icon: "upi", title: "UPI AutoPay", description: "Seamless subscriptions powered by native UPI AutoPay." },
+  ],
+  identity: { accent: "#3B82F6", glow: "#93C5FD", deep: "#0B2A6B" },
+};
+
+const demo = (
+  id: string,
+  name: string,
+  tags: string[],
+  summary: string,
+  accent: string,
+  glow: string,
+  deep: string,
+  stat: number,
+): Product => ({
+  id,
+  name,
+  status: "Live",
+  tags,
+  category: tags[0],
+  summary,
+  description: summary,
+  links: [{ label: "Learn more", href: "#contact" }],
+  stat: { value: stat, suffix: "+", label: "Downloads" },
+  features: [],
+  identity: { accent, glow, deep },
+  demo: true,
+});
+
+const DEMO_APPS: Product[] = [
+  demo("rasoi", "Rasoi", ["Food", "Recipes"], "Everyday Indian recipes and weekly meal plans for the whole family.", "#F97316", "#FDBA74", "#7C2D12", 120000),
+  demo("kosh", "Kosh", ["Finance", "Budgeting"], "Track spending, split bills and save smarter with UPI-first budgeting.", "#10B981", "#6EE7B7", "#064E3B", 85000),
+  demo("sutra", "Sutra", ["Learning", "Skills"], "Bite-sized courses that fit between classes, commutes and chai breaks.", "#8B5CF6", "#C4B5FD", "#2E1065", 64000),
+  demo("yatra", "Yatra", ["Travel", "Trips"], "Plan trips across India with routes, stays and budgets in one place.", "#06B6D4", "#67E8F9", "#164E63", 47000),
+  demo("swasth", "Swasth", ["Health", "Fitness"], "Daily habits, step goals and home workouts made for busy lives.", "#F43F5E", "#FDA4AF", "#881337", 92000),
+  demo("bazaar", "Bazaar", ["Shopping", "Local"], "Discover deals from neighbourhood stores, right around the corner.", "#F59E0B", "#FCD34D", "#78350F", 38000),
+  demo("dhun", "Dhun", ["Music", "Audio"], "Regional music, devotional playlists and podcasts in your language.", "#D946EF", "#F0ABFC", "#701A75", 150000),
+  demo("saathi", "Saathi", ["Community", "Chat"], "Private groups for families, societies and the people you trust.", "#6366F1", "#A5B4FC", "#1E1B4B", 29000),
+  demo("kheti", "Kheti", ["Agriculture", "Advisory"], "Weather, mandi prices and crop advice for farmers, in their language.", "#84CC16", "#BEF264", "#365314", 56000),
 ];
 
-/**
- * Empty orbits drawn beyond the product orbits. They carry no product and no
- * label beyond "open orbit" — room in the system for what launches next.
- * Set to 0 to show only product orbits.
- */
-export const OPEN_ORBITS = 3;
+export const PRODUCTS: Product[] = [LOOKZON, ...(SHOW_DEMO_APPS ? DEMO_APPS : [])];
+
+/** No longer used for layout; kept for compatibility. */
+export const OPEN_ORBITS = 0;
 
 export function getProduct(id: string | null | undefined) {
   return PRODUCTS.find((p) => p.id === id) ?? null;
